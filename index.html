@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>BasBasi QR Pass - Mobile Web App</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Plus Jakarta Sans -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- QR Code Generator library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- HTML5 QR Code scanner library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #090d16;
+            margin: 0;
+            padding: 0;
+            color: #1e293b;
+        }
+
+        .custom-shadow {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+        }
+
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        /* Fullscreen Mobile App Wrapper fixed at top */
+        .app-fullscreen-wrapper {
+            width: 100%;
+            min-height: 100vh;
+            min-height: 100dvh;
+            background: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 99999;
+        }
+
+        @media (min-width: 640px) {
+            .app-fullscreen-wrapper {
+                max-width: 480px;
+                left: 50%;
+                transform: translateX(-50%);
+                box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+            }
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-indigo-500 selection:text-white">
+
+    <div class="app-fullscreen-wrapper">
+        
+        <!-- Header dengan Icon Bola Poly -->
+        <header class="bg-white/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 px-4 py-3 flex items-center justify-between shadow-sm">
+            <div class="flex items-center space-x-2.5">
+                <div class="w-10 h-10 bg-gradient-to-tr from-indigo-600 via-violet-600 to-indigo-700 rounded-2xl flex items-center justify-center text-white shadow-md shadow-indigo-200 relative overflow-hidden group">
+                    <div class="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition"></div>
+                    <!-- Poly Soccer Ball / Football Hexagon Icon -->
+                    <i class="fa-solid fa-futbol text-lg animate-spin" style="animation-duration: 20s;"></i>
+                </div>
+                <div>
+                    <h1 class="font-extrabold text-sm text-slate-900 tracking-tight flex items-center space-x-1">
+                        <span>BasBasi QR Pass</span>
+                    </h1>
+                    <div class="flex items-center space-x-1.5 mt-0.5">
+                        <span id="roleIndicatorBadge" class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                        <span id="headerRoleText" class="text-[11px] font-semibold text-slate-500">Memuat Role...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2">
+                <!-- Sync Button -->
+                <button onclick="syncWithGoogleSheets()" id="syncBtn" class="bg-slate-100 hover:bg-slate-200 text-slate-600 w-9 h-9 rounded-xl text-xs font-semibold flex items-center justify-center transition" title="Sinkronisasi Data">
+                    <i class="fa-solid fa-rotate text-xs" id="syncIcon"></i>
+                </button>
+                <!-- Role Switcher Button -->
+                <button onclick="openRoleSwitchModal()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-sm">
+                    <i class="fa-solid fa-user-gear"></i>
+                    <span id="switchRoleBtnText">Ganti Role</span>
+                </button>
+            </div>
+        </header>
+
+        <main class="flex-1 w-full p-4 pb-24">
+            
+            <!-- Admin Dashboard View -->
+            <div id="adminView" class="space-y-4 hidden">
+                <!-- Stats Overview Card -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-gradient-to-br from-indigo-600 to-indigo-800 text-white p-4 rounded-2xl shadow-md shadow-indigo-100 relative overflow-hidden">
+                        <div class="absolute -right-4 -bottom-4 text-white/10 text-6xl">
+                            <i class="fa-solid fa-users"></i>
+                        </div>
+                        <p class="text-[11px] font-medium text-indigo-100 uppercase tracking-wider">Total Tim</p>
+                        <h3 id="statTotalTeams" class="text-2xl font-black mt-1">0</h3>
+                        <p class="text-[10px] text-indigo-200 mt-1">Terdaftar di Sheets</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-emerald-600 to-emerald-800 text-white p-4 rounded-2xl shadow-md shadow-emerald-100 relative overflow-hidden">
+                        <div class="absolute -right-4 -bottom-4 text-white/10 text-6xl">
+                            <i class="fa-solid fa-ticket"></i>
+                        </div>
+                        <p class="text-[11px] font-medium text-emerald-100 uppercase tracking-wider">Total Akses Hari Ini</p>
+                        <h3 id="statTotalAccess" class="text-2xl font-black mt-1">0</h3>
+                        <p class="text-[10px] text-emerald-200 mt-1">Scan Berhasil</p>
+                    </div>
+                </div>
+
+                <!-- Add Team Form Card -->
+                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 custom-shadow">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-sm text-slate-800 flex items-center space-x-2">
+                            <div class="w-7 h-7 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center text-xs">
+                                <i class="fa-solid fa-user-plus"></i>
+                            </div>
+                            <span>Tambah Tim Baru</span>
+                        </h3>
+                        <span class="text-[10px] bg-indigo-50 text-indigo-600 font-bold px-2 py-0.5 rounded-md">Admin Mode</span>
+                    </div>
+                    <form onsubmit="handleAddTeam(event)" class="space-y-3">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Nama Tim / Peserta</label>
+                            <input type="text" id="teamNameInput" required placeholder="Contoh: Tim Rajawali FC" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Jumlah Maksimal Akses Per Hari</label>
+                            <input type="number" id="teamLimitInput" min="1" value="3" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium">
+                        </div>
+                        <button type="submit" id="submitTeamBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-xs font-bold transition shadow-sm shadow-indigo-100 flex items-center justify-center space-x-2">
+                            <i class="fa-solid fa-plus"></i>
+                            <span>Simpan & Buat QR (4 Karakter)</span>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Team List Card -->
+                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 custom-shadow">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-sm text-slate-800 flex items-center space-x-2">
+                            <div class="w-7 h-7 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center text-xs">
+                                <i class="fa-solid fa-list-check"></i>
+                            </div>
+                            <span>Daftar Tim & QR Code</span>
+                        </h3>
+                        <span id="teamCountBadge" class="text-xs bg-slate-100 text-slate-600 font-bold px-2.5 py-0.5 rounded-full">0 Tim</span>
+                    </div>
+
+                    <!-- Search box -->
+                    <div class="mb-3 relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400 text-xs">
+                            <i class="fa-solid fa-search"></i>
+                        </span>
+                        <input type="text" id="searchTeamInput" oninput="filterTeams()" placeholder="Cari nama tim atau ID (4 karakter)..." class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+
+                    <div id="teamsContainer" class="space-y-2.5 max-h-96 overflow-y-auto pr-1">
+                        <div class="text-center py-8 text-slate-400 text-xs">Memuat data dari Google Sheets...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panitia Scanner View -->
+            <div id="panitiaView" class="space-y-4 hidden">
+                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 custom-shadow text-center">
+                    <div class="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-2 text-xl shadow-sm border border-emerald-100">
+                        <i class="fa-solid fa-qrcode animate-bounce"></i>
+                    </div>
+                    <h3 class="font-extrabold text-base text-slate-900">Scanner & Akses Panitia</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">Arahkan kamera ke QR Code 4-karakter atau ketik manual.</p>
+
+                    <!-- Manual Input Form for Panitia -->
+                    <div class="mt-4 bg-slate-50 p-3 rounded-xl border border-slate-200 text-left">
+                        <label class="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center space-x-1.5">
+                            <i class="fa-solid fa-keyboard text-emerald-600"></i>
+                            <span>Input Manual Kode 4-Karakter / Nama Tim</span>
+                        </label>
+                        <form onsubmit="handleManualInput(event)" class="flex space-x-2">
+                            <input type="text" id="manualTeamInput" placeholder="Contoh: A7X2 atau Nama Tim" required class="flex-1 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium">
+                            <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition shadow-sm flex items-center space-x-1">
+                                <i class="fa-solid fa-check"></i>
+                                <span>Proses</span>
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Scanner Container -->
+                    <div class="mt-4 bg-slate-900 rounded-2xl overflow-hidden relative shadow-inner aspect-square flex items-center justify-center">
+                        <div id="reader" class="w-full h-full"></div>
+                        <!-- Scanner Overlay Animation -->
+                        <div id="scannerOverlay" class="absolute inset-0 border-2 border-emerald-500/50 pointer-events-none flex items-center justify-center hidden">
+                            <div class="w-48 h-48 border-2 border-dashed border-emerald-400 rounded-xl animate-pulse"></div>
+                        </div>
+                    </div>
+
+                    <!-- Scanner Control Buttons -->
+                    <div class="mt-4 grid grid-cols-2 gap-2">
+                        <button onclick="startScanner()" id="startScanBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl text-xs font-bold transition shadow-sm shadow-emerald-100 flex items-center justify-center space-x-1.5">
+                            <i class="fa-solid fa-camera"></i>
+                            <span>Buka Kamera</span>
+                        </button>
+                        <button onclick="stopScanner()" id="stopScanBtn" class="bg-slate-200 hover:bg-slate-300 text-slate-700 py-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5">
+                            <i class="fa-solid fa-camera-slash"></i>
+                            <span>Tutup Kamera</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Recent Scan Logs -->
+                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 custom-shadow">
+                    <h3 class="font-bold text-sm text-slate-800 mb-2.5 flex items-center space-x-2">
+                        <i class="fa-solid fa-clock-rotate-left text-emerald-600"></i>
+                        <span>Log Scan Masuk Hari Ini</span>
+                    </h3>
+                    <div id="scanLogsContainer" class="space-y-2 max-h-56 overflow-y-auto">
+                        <div class="text-center py-6 text-slate-400 text-xs">Belum ada aktivitas scan hari ini.</div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- QR Code Modal -->
+        <div id="qrModal" class="fixed inset-0 bg-slate-900/70 z-50 hidden items-center justify-center p-4 backdrop-blur-sm">
+            <div class="bg-white rounded-3xl p-6 w-full max-w-xs text-center relative custom-shadow">
+                <button onclick="closeQrModal()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+                <h3 id="qrModalTeamName" class="font-extrabold text-base text-slate-900 mb-0.5">Nama Tim</h3>
+                <p class="text-xs text-slate-500 mb-4">Tunjukkan QR Code ini kepada panitia</p>
+                
+                <div id="qrcodeContainer" class="bg-white p-3.5 border border-slate-100 rounded-2xl inline-block mx-auto mb-4 shadow-md"></div>
+                
+                <div class="bg-slate-50 p-3 rounded-xl text-left mb-4 text-xs space-y-1 border border-slate-100">
+                    <p class="text-slate-500">Kode QR (4 Karakter): <span id="qrModalTeamId" class="font-mono font-bold text-indigo-600"></span></p>
+                    <p class="text-slate-500">Sisa Kuota: <span id="qrModalTeamQuota" class="font-bold text-slate-800"></span></p>
+                </div>
+
+                <button onclick="downloadQrImage()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl text-xs font-bold transition shadow-sm shadow-indigo-100 flex items-center justify-center space-x-1.5">
+                    <i class="fa-solid fa-download"></i>
+                    <span>Simpan Gambar QR</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Edit Team Limit Modal -->
+        <div id="editLimitModal" class="fixed inset-0 bg-slate-900/70 z-50 hidden items-center justify-center p-4 backdrop-blur-sm">
+            <div class="bg-white rounded-3xl p-6 w-full max-w-xs text-center relative custom-shadow">
+                <button onclick="closeEditLimitModal()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+                <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-3 text-lg">
+                    <i class="fa-solid fa-plus-minus"></i>
+                </div>
+                <h3 class="font-bold text-base text-slate-800 mb-0.5">Ubah Limit Akses</h3>
+                <p id="editTeamNameLabel" class="text-xs text-slate-500 mb-4">Nama Tim</p>
+                
+                <form onsubmit="saveUpdatedLimit(event)" class="space-y-3">
+                    <div class="text-left">
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Jumlah Maksimal Akses Per Hari</label>
+                        <input type="number" id="editTeamLimitInput" min="0" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl text-xs font-bold transition shadow-sm">
+                        Simpan Perubahan Limit
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Role Switch / Initial Access Menu Modal with Poly Ball Icon -->
+        <div id="roleModal" class="fixed inset-0 bg-slate-950/80 z-50 hidden items-center justify-center p-4 backdrop-blur-md">
+            <div class="bg-white rounded-3xl p-6 w-full max-w-sm text-center relative custom-shadow border border-slate-100">
+                <button onclick="closeRoleSwitchModal()" id="closeRoleModalBtn" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-600 hover:bg-slate-200 flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+                
+                <div class="w-16 h-16 bg-gradient-to-tr from-indigo-600 via-violet-600 to-indigo-700 text-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl shadow-indigo-200 text-2xl relative">
+                    <i class="fa-solid fa-futbol animate-spin" style="animation-duration: 15s;"></i>
+                </div>
+                
+                <h3 class="font-extrabold text-lg text-slate-900 mb-1">Pilih Menu Akses</h3>
+                <p class="text-xs text-slate-500 mb-6">Tentukan peran Anda untuk masuk ke sistem BasBasi QR Pass.</p>
+                
+                <div class="space-y-3">
+                    <button onclick="selectRole('admin')" class="w-full bg-gradient-to-r from-indigo-600 to-indigo-800 hover:from-indigo-700 hover:to-indigo-900 text-white p-4 rounded-2xl text-left transition shadow-md shadow-indigo-100 flex items-center justify-between group">
+                        <div class="flex items-center space-x-3.5">
+                            <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white text-base">
+                                <i class="fa-solid fa-user-shield"></i>
+                            </div>
+                            <div>
+                                <div class="font-bold text-sm tracking-tight">Admin Utama</div>
+                                <div class="text-[11px] text-indigo-100/80">Kelola tim, kuota & database (PIN: 1318)</div>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-right text-xs opacity-70 group-hover:translate-x-0.5 transition-transform"></i>
+                    </button>
+
+                    <button onclick="selectRole('panitia')" class="w-full bg-gradient-to-r from-emerald-600 to-emerald-800 hover:from-emerald-700 hover:to-emerald-900 text-white p-4 rounded-2xl text-left transition shadow-md shadow-emerald-100 flex items-center justify-between group">
+                        <div class="flex items-center space-x-3.5">
+                            <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white text-base">
+                                <i class="fa-solid fa-qrcode"></i>
+                            </div>
+                            <div>
+                                <div class="font-bold text-sm tracking-tight">Panitia Scanner</div>
+                                <div class="text-[11px] text-emerald-100/80">Scan tiket QR masuk & input manual</div>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-right text-xs opacity-70 group-hover:translate-x-0.5 transition-transform"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin PIN Passcode Modal (1318) -->
+        <div id="pinModal" class="fixed inset-0 bg-slate-900/70 z-50 hidden items-center justify-center p-4 backdrop-blur-sm">
+            <div class="bg-white rounded-3xl p-6 w-full max-w-xs text-center relative custom-shadow">
+                <button onclick="closePinModal()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+                <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-3 text-lg">
+                    <i class="fa-solid fa-lock"></i>
+                </div>
+                <h3 class="font-bold text-base text-slate-900 mb-1">Kode PIN Admin</h3>
+                <p class="text-xs text-slate-500 mb-4">Masukkan 4 digit PIN admin (PIN: 1318)</p>
+                
+                <form onsubmit="verifyAdminPin(event)" class="space-y-3">
+                    <input type="password" id="adminPinInput" maxlength="4" placeholder="••••" required class="w-full text-center tracking-widest text-xl px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold">
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl text-xs font-bold transition shadow-sm shadow-indigo-100">
+                        Verifikasi PIN
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Scan Validation Result Modal -->
+        <div id="scanResultModal" class="fixed inset-0 bg-slate-900/70 z-50 hidden items-center justify-center p-4 backdrop-blur-sm">
+            <div class="bg-white rounded-3xl p-6 w-full max-w-xs text-center relative custom-shadow">
+                <div id="scanResultIconContainer" class="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-3 text-2xl shadow-sm">
+                    <i id="scanResultIcon" class="fa-solid fa-check"></i>
+                </div>
+                <h3 id="scanResultTitle" class="font-extrabold text-lg text-slate-900 mb-1">Status Akses</h3>
+                <p id="scanResultDesc" class="text-xs text-slate-600 mb-4">Keterangan validasi akses tim.</p>
+                
+                <div class="bg-slate-50 p-3.5 rounded-xl text-left mb-4 text-xs space-y-1.5 border border-slate-100">
+                    <p class="text-slate-500">Tim: <span id="resTeamName" class="font-bold text-slate-800"></span></p>
+                    <p class="text-slate-500">Sisa Kuota: <span id="resTeamQuota" class="font-bold text-indigo-600"></span></p>
+                </div>
+
+                <button onclick="closeScanResultModal()" class="w-full bg-slate-900 hover:bg-slate-800 text-white py-3 rounded-xl text-xs font-bold transition shadow-sm">
+                    Tutup & Lanjutkan Scan
+                </button>
+            </div>
+        </div>
+
+        <!-- General Notification Modal -->
+        <div id="notificationModal" class="fixed inset-0 bg-slate-900/70 z-50 hidden items-center justify-center p-4 backdrop-blur-sm">
+            <div class="bg-white rounded-3xl p-6 w-full max-w-xs text-center relative custom-shadow">
+                <div id="notifIconBox" class="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-3 text-lg">
+                    <i class="fa-solid fa-bell" id="notifIcon"></i>
+                </div>
+                <h3 id="notifTitle" class="font-bold text-base text-slate-900 mb-1">Notifikasi</h3>
+                <p id="notifMessage" class="text-xs text-slate-500 mb-4">Pesan sistem...</p>
+                <button onclick="closeNotificationModal()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl text-xs font-bold transition shadow-sm">
+                    Mengerti
+                </button>
+            </div>
+        </div>
+
+        <!-- Footer Status -->
+        <footer class="bg-white border-t border-slate-200 py-2.5 px-4 text-center text-[11px] text-slate-400 fixed bottom-0 left-0 right-0 z-30 max-w-[480px] mx-auto shadow-sm">
+            BasBasi QR Pass &bull; Google Sheets Database
+        </footer>
+
+    </div>
+
+    <script>
+        const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwcg3QQ3xFT_AN9uJwHsX96oLT3xp-lF6oXxsupnUhGHMNOKvxg02ObggBodHv7Gg/exec';
+        
+        let teams = [];
+        let scanLogs = [];
+        let currentRole = localStorage.getItem('basbasi_role') || null; 
+        let html5QrCode = null;
+        let isScanning = false;
+        let editingTeamId = null;
+
+        window.onload = function() {
+            if (!currentRole) {
+                openRoleSwitchModal(); 
+            } else {
+                updateRoleUI();
+            }
+            loadDataFromGoogleSheets();
+            loadLogsFromLocalStorage();
+        };
+
+        async function loadDataFromGoogleSheets() {
+            const syncIcon = document.getElementById('syncIcon');
+            if (syncIcon) syncIcon.classList.add('fa-spin');
+
+            try {
+                const response = await fetch(WEB_APP_URL);
+                const data = await response.json();
+                if (data && data.teams) {
+                    teams = data.teams;
+                    localStorage.setItem('basbasi_teams', JSON.stringify(teams));
+                    renderTeams();
+                    updateStats();
+                }
+            } catch (error) {
+                console.warn('Gagal memuat dari Google Sheets, menggunakan LocalStorage:', error);
+                const localData = localStorage.getItem('basbasi_teams');
+                if (localData) {
+                    teams = JSON.parse(localData);
+                    renderTeams();
+                    updateStats();
+                }
+            } finally {
+                if (syncIcon) syncIcon.classList.remove('fa-spin');
+            }
+        }
+
+        async function syncWithGoogleSheets() {
+            showNotificationModal('Sinkronisasi', 'Menghubungkan ke Google Sheets...');
+            await loadDataFromGoogleSheets();
+            showNotificationModal('Berhasil', 'Data berhasil disinkronkan dengan Google Sheets.');
+        }
+
+        async function postDataToGoogleSheets(payload) {
+            try {
+                await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            } catch (error) {
+                console.error('Error posting to Google Sheets:', error);
+            }
+        }
+
+        function updateRoleUI() {
+            const adminView = document.getElementById('adminView');
+            const panitiaView = document.getElementById('panitiaView');
+            const headerRoleText = document.getElementById('headerRoleText');
+            const roleIndicatorBadge = document.getElementById('roleIndicatorBadge');
+            const switchRoleBtnText = document.getElementById('switchRoleBtnText');
+
+            if (currentRole === 'admin') {
+                adminView.classList.remove('hidden');
+                panitiaView.classList.add('hidden');
+                headerRoleText.textContent = 'Admin Utama';
+                roleIndicatorBadge.className = 'inline-block w-2 h-2 rounded-full bg-indigo-500';
+                switchRoleBtnText.textContent = 'Panitia';
+            } else {
+                adminView.classList.add('hidden');
+                panitiaView.classList.remove('hidden');
+                headerRoleText.textContent = 'Panitia Scanner';
+                roleIndicatorBadge.className = 'inline-block w-2 h-2 rounded-full bg-emerald-500';
+                switchRoleBtnText.textContent = 'Admin';
+            }
+        }
+
+        function openRoleSwitchModal() {
+            const modal = document.getElementById('roleModal');
+            const closeBtn = document.getElementById('closeRoleModalBtn');
+            
+            if (!currentRole) {
+                closeBtn.classList.add('hidden');
+            } else {
+                closeBtn.classList.remove('hidden');
+            }
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeRoleSwitchModal() {
+            if (!currentRole) return; 
+            document.getElementById('roleModal').classList.add('hidden');
+            document.getElementById('roleModal').classList.remove('flex');
+        }
+
+        function selectRole(role) {
+            if (role === 'admin') {
+                closeRoleSwitchModal();
+                document.getElementById('pinModal').classList.remove('hidden');
+                document.getElementById('pinModal').classList.add('flex');
+            } else {
+                currentRole = 'panitia';
+                localStorage.setItem('basbasi_role', currentRole);
+                closeRoleSwitchModal();
+                updateRoleUI();
+                stopScanner();
+            }
+        }
+
+        function closePinModal() {
+            document.getElementById('pinModal').classList.add('hidden');
+            document.getElementById('pinModal').classList.remove('flex');
+            document.getElementById('adminPinInput').value = '';
+        }
+
+        function verifyAdminPin(e) {
+            e.preventDefault();
+            const pin = document.getElementById('adminPinInput').value;
+            if (pin === '1318') {
+                currentRole = 'admin';
+                localStorage.setItem('basbasi_role', currentRole);
+                closePinModal();
+                updateRoleUI();
+                showNotificationModal('Akses Diterima', 'Anda berhasil masuk sebagai Admin Utama.');
+            } else {
+                showNotificationModal('PIN Salah', 'Kode PIN admin yang Anda masukkan salah. (PIN: 1318)');
+                document.getElementById('adminPinInput').value = '';
+            }
+        }
+
+        async function handleAddTeam(event) {
+            event.preventDefault();
+            const nameInput = document.getElementById('teamNameInput');
+            const limitInput = document.getElementById('teamLimitInput');
+
+            const name = nameInput.value.trim();
+            const limit = parseInt(limitInput.value);
+
+            if (!name || isNaN(limit)) return;
+
+            // Generate concise 4-character ID (e.g. A7X2)
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let shortCode = '';
+            for (let i = 0; i < 4; i++) {
+                shortCode += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+
+            const newTeam = {
+                id: shortCode,
+                name: name,
+                limit: limit,
+                usedToday: 0,
+                lastResetDate: new Date().toDateString(),
+                createdAt: new Date().toLocaleDateString('id-ID')
+            };
+
+            teams.unshift(newTeam);
+            localStorage.setItem('basbasi_teams', JSON.stringify(teams));
+            
+            nameInput.value = '';
+            limitInput.value = '3';
+            renderTeams();
+            updateStats();
+
+            showNotificationModal('Berhasil', `Tim "${name}" berhasil ditambahkan dengan QR Code: ${shortCode}`);
+
+            await postDataToGoogleSheets({
+                action: 'addTeam',
+                team: newTeam
+            });
+            setTimeout(() => { loadDataFromGoogleSheets(); }, 1200);
+        }
+
+        function deleteTeam(id) {
+            if (!confirm('Apakah Anda yakin ingin menghapus tim ini?')) return;
+            teams = teams.filter(t => t.id !== id);
+            localStorage.setItem('basbasi_teams', JSON.stringify(teams));
+            renderTeams();
+            updateStats();
+
+            postDataToGoogleSheets({
+                action: 'deleteTeam',
+                id: id
+            });
+        }
+
+        function openEditLimitModal(id) {
+            const team = teams.find(t => t.id === id);
+            if (!team) return;
+            editingTeamId = id;
+            document.getElementById('editTeamNameLabel').textContent = team.name + ' (ID: ' + team.id + ')';
+            document.getElementById('editTeamLimitInput').value = team.limit;
+            document.getElementById('editLimitModal').classList.remove('hidden');
+            document.getElementById('editLimitModal').classList.add('flex');
+        }
+
+        function closeEditLimitModal() {
+            document.getElementById('editLimitModal').classList.add('hidden');
+            document.getElementById('editLimitModal').classList.remove('flex');
+            editingTeamId = null;
+        }
+
+        async function saveUpdatedLimit(e) {
+            e.preventDefault();
+            if (!editingTeamId) return;
+            const newLimit = parseInt(document.getElementById('editTeamLimitInput').value);
+            if (isNaN(newLimit) || newLimit < 0) return;
+
+            const team = teams.find(t => t.id === editingTeamId);
+            if (team) {
+                team.limit = newLimit;
+                localStorage.setItem('basbasi_teams', JSON.stringify(teams));
+                renderTeams();
+                updateStats();
+                closeEditLimitModal();
+                showNotificationModal("Limit Diperbarui", `Kuota akses untuk "${team.name}" berhasil diubah menjadi ${newLimit} kali.`);
+
+                await postDataToGoogleSheets({
+                    action: 'updateTeamLimit',
+                    id: team.id,
+                    limit: team.limit
+                });
+                setTimeout(() => { loadDataFromGoogleSheets(); }, 1200);
+            }
+        }
+
+        function renderTeams() {
+            const container = document.getElementById('teamsContainer');
+            const countBadge = document.getElementById('teamCountBadge');
+            if (countBadge) countBadge.textContent = `${teams.length} Tim`;
+
+            if (teams.length === 0) {
+                container.innerHTML = `<div class="text-center py-8 text-slate-400 text-xs">Belum ada tim terdaftar.</div>`;
+                return;
+            }
+
+            container.innerHTML = teams.map(team => `
+                <div class="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 flex items-center justify-between">
+                    <div>
+                        <div class="flex items-center space-x-1.5">
+                            <span class="bg-indigo-100 text-indigo-700 font-mono text-[10px] font-extrabold px-2 py-0.5 rounded-md">${team.id}</span>
+                            <h4 class="font-bold text-slate-800 text-sm">${escapeHtml(team.name)}</h4>
+                        </div>
+                        <p class="text-[11px] text-slate-500 mt-1">
+                            Akses Sheets: <span class="font-bold text-indigo-600">${team.usedToday || 0}</span> / ${team.limit} kali
+                        </p>
+                    </div>
+                    <div class="flex items-center space-x-1.5">
+                        <button onclick="openEditLimitModal('${team.id}')" class="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 w-8 h-8 rounded-xl text-xs font-semibold flex items-center justify-center transition" title="Ubah Limit">
+                            <i class="fa-solid fa-plus-minus text-xs"></i>
+                        </button>
+                        <button onclick="showQrCode('${team.id}')" class="bg-indigo-50 text-indigo-600 hover:bg-indigo-100 w-8 h-8 rounded-xl text-xs font-semibold flex items-center justify-center transition" title="Lihat QR Code">
+                            <i class="fa-solid fa-qrcode text-xs"></i>
+                        </button>
+                        <button onclick="deleteTeam('${team.id}')" class="bg-rose-50 text-rose-600 hover:bg-rose-100 w-8 h-8 rounded-xl text-xs font-semibold flex items-center justify-center transition" title="Hapus Tim">
+                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterTeams() {
+            const query = document.getElementById('searchTeamInput').value.toLowerCase();
+            const filtered = teams.filter(t => t.name.toLowerCase().includes(query) || t.id.toLowerCase().includes(query));
+            const container = document.getElementById('teamsContainer');
+            
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="text-center py-8 text-slate-400 text-xs">Tim tidak ditemukan.</div>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(team => `
+                <div class="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 flex items-center justify-between">
+                    <div>
+                        <div class="flex items-center space-x-1.5">
+                            <span class="bg-indigo-100 text-indigo-700 font-mono text-[10px] font-extrabold px-2 py-0.5 rounded-md">${team.id}</span>
+                            <h4 class="font-bold text-slate-800 text-sm">${escapeHtml(team.name)}</h4>
+                        </div>
+                        <p class="text-[11px] text-slate-500 mt-1">
+                            Akses: <span class="font-bold text-indigo-600">${team.usedToday || 0}</span> / ${team.limit} kali
+                        </p>
+                    </div>
+                    <div class="flex items-center space-x-1.5">
+                        <button onclick="openEditLimitModal('${team.id}')" class="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 w-8 h-8 rounded-xl text-xs font-semibold flex items-center justify-center transition" title="Ubah Limit">
+                            <i class="fa-solid fa-plus-minus text-xs"></i>
+                        </button>
+                        <button onclick="showQrCode('${team.id}')" class="bg-indigo-50 text-indigo-600 hover:bg-indigo-100 w-8 h-8 rounded-xl text-xs font-semibold flex items-center justify-center transition" title="Lihat QR Code">
+                            <i class="fa-solid fa-qrcode text-xs"></i>
+                        </button>
+                        <button onclick="deleteTeam('${team.id}')" class="bg-rose-50 text-rose-600 hover:bg-rose-100 w-8 h-8 rounded-xl text-xs font-semibold flex items-center justify-center transition" title="Hapus Tim">
+                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateStats() {
+            const totalTeams = teams.length;
+            const totalAccess = teams.reduce((acc, t) => acc + (t.usedToday || 0), 0);
+            document.getElementById('statTotalTeams').textContent = totalTeams;
+            document.getElementById('statTotalAccess').textContent = totalAccess;
+        }
+
+        function showQrCode(id) {
+            const team = teams.find(t => t.id === id);
+            if (!team) return;
+
+            document.getElementById('qrModalTeamName').textContent = team.name;
+            document.getElementById('qrModalTeamId').textContent = team.id;
+            document.getElementById('qrModalTeamQuota').textContent = `${team.usedToday || 0} / ${team.limit} Terpakai`;
+
+            const qrContainer = document.getElementById('qrcodeContainer');
+            qrContainer.innerHTML = '';
+            
+            new QRCode(qrContainer, {
+                text: team.id,
+                width: 180,
+                height: 180,
+                colorDark: "#0f172a",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+
+            document.getElementById('qrModal').classList.remove('hidden');
+            document.getElementById('qrModal').classList.add('flex');
+        }
+
+        function closeQrModal() {
+            document.getElementById('qrModal').classList.add('hidden');
+            document.getElementById('qrModal').classList.remove('flex');
+        }
+
+        function downloadQrImage() {
+            const qrCanvas = document.querySelector('#qrcodeContainer canvas');
+            if (!qrCanvas) return;
+            const link = document.createElement('a');
+            link.download = 'QR-' + document.getElementById('qrModalTeamId').textContent + '-' + document.getElementById('qrModalTeamName').textContent + '.png';
+            link.href = qrCanvas.toDataURL('image/png');
+            link.click();
+        }
+
+        function startScanner() {
+            if (isScanning) return;
+            
+            const qrContainerId = "reader";
+            html5QrCode = new Html5Qrcode(qrContainerId);
+            
+            const config = { fps: 10, qrbox: { width: 220, height: 220 } };
+            
+            html5QrCode.start(
+                { facingMode: "environment" }, 
+                config, 
+                onScanSuccess, 
+                onScanFailure
+            ).then(() => {
+                isScanning = true;
+                document.getElementById('scannerOverlay').classList.remove('hidden');
+                document.getElementById('startScanBtn').classList.add('opacity-50');
+            }).catch(err => {
+                console.error("Gagal memulai kamera:", err);
+                showNotificationModal('Kamera Error', 'Tidak dapat mengakses kamera perangkat. Pastikan izin kamera diberikan.');
+            });
+        }
+
+        function stopScanner() {
+            if (!isScanning || !html5QrCode) return;
+            
+            html5QrCode.stop().then(() => {
+                isScanning = false;
+                html5QrCode.clear();
+                document.getElementById('scannerOverlay').classList.add('hidden');
+                document.getElementById('startScanBtn').classList.remove('opacity-50');
+            }).catch(err => {
+                console.error("Gagal menghentikan kamera:", err);
+                isScanning = false;
+                document.getElementById('scannerOverlay').classList.add('hidden');
+                document.getElementById('startScanBtn').classList.remove('opacity-50');
+            });
+        }
+
+        function onScanSuccess(decodedText, decodedResult) {
+            stopScanner();
+            processTeamAccess(decodedText.trim());
+        }
+
+        function handleManualInput(event) {
+            event.preventDefault();
+            const inputVal = document.getElementById('manualTeamInput').value.trim();
+            if (!inputVal) return;
+            document.getElementById('manualTeamInput').value = '';
+            processTeamAccess(inputVal);
+        }
+
+        function processTeamAccess(identifier) {
+            let team = teams.find(t => t.id.toLowerCase() === identifier.toLowerCase() || t.name.toLowerCase() === identifier.toLowerCase());
+
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const dateStr = now.toLocaleDateString('id-ID');
+
+            let success = false;
+            let statusText = '';
+
+            if (!team) {
+                success = false;
+                statusText = 'QR / Tim tidak dikenal';
+                showScanResult(false, "Tidak Ditemukan", `Kode/Nama "${identifier}" tidak terdaftar.`, "Tidak Diketahui", "0 / 0");
+            } else {
+                if (!team.usedToday) team.usedToday = 0;
+                
+                if (team.usedToday < team.limit) {
+                    team.usedToday += 1;
+                    success = true;
+                    statusText = 'Akses Masuk Diizinkan';
+                    localStorage.setItem('basbasi_teams', JSON.stringify(teams));
+                    updateStats();
+                    renderTeams();
+
+                    showScanResult(true, "Akses Berhasil!", `Tim ${team.name} diizinkan masuk.`, team.name + ' (' + team.id + ')', `${team.usedToday} / ${team.limit}`);
+
+                    postDataToGoogleSheets({
+                        action: 'recordAccess',
+                        id: team.id,
+                        usedToday: team.usedToday,
+                        log: {
+                            teamName: team.name + ' [' + team.id + ']',
+                            success: 'BERHASIL',
+                            statusText: `Akses ke-${team.usedToday}`,
+                            time: timeStr,
+                            date: dateStr
+                        }
+                    });
+                } else {
+                    success = false;
+                    statusText = 'Kuota Harian Telah Habis';
+                    showScanResult(false, "Kuota Habis", `Tim ${team.name} telah mencapai batas maksimal akses hari ini.`, team.name + ' (' + team.id + ')', `${team.usedToday} / ${team.limit}`);
+
+                    postDataToGoogleSheets({
+                        action: 'recordAccess',
+                        id: team.id,
+                        usedToday: team.usedToday,
+                        log: {
+                            teamName: team.name + ' [' + team.id + ']',
+                            success: 'DITOLAK',
+                            statusText: 'Kuota Habis',
+                            time: timeStr,
+                            date: dateStr
+                        }
+                    });
+                }
+            }
+
+            const logItem = {
+                teamName: team ? team.name + ' (' + team.id + ')' : identifier,
+                success: success,
+                statusText: statusText,
+                time: timeStr,
+                date: dateStr
+            };
+            scanLogs.unshift(logItem);
+            saveLogsToLocalStorage();
+            renderScanLogs();
+        }
+
+        function onScanFailure(error) {
+            // Ignored during frame polling
+        }
+
+        function showScanResult(isSuccess, title, desc, teamName, quota) {
+            const iconBox = document.getElementById('scanResultIconContainer');
+            const icon = document.getElementById('scanResultIcon');
+            
+            if (isSuccess) {
+                iconBox.className = 'w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-3 text-2xl';
+                icon.className = 'fa-solid fa-check';
+            } else {
+                iconBox.className = 'w-16 h-16 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-3 text-2xl';
+                icon.className = 'fa-solid fa-xmark';
+            }
+
+            document.getElementById('scanResultTitle').textContent = title;
+            document.getElementById('scanResultDesc').textContent = desc;
+            document.getElementById('resTeamName').textContent = teamName;
+            document.getElementById('resTeamQuota').textContent = quota;
+
+            document.getElementById('scanResultModal').classList.remove('hidden');
+            document.getElementById('scanResultModal').classList.add('flex');
+        }
+
+        function closeScanResultModal() {
+            document.getElementById('scanResultModal').classList.add('hidden');
+            document.getElementById('scanResultModal').classList.remove('flex');
+        }
+
+        function saveLogsToLocalStorage() {
+            localStorage.setItem('basbasi_logs', JSON.stringify(scanLogs.slice(0, 50)));
+        }
+
+        function loadLogsFromLocalStorage() {
+            const saved = localStorage.getItem('basbasi_logs');
+            if (saved) {
+                try {
+                    scanLogs = JSON.parse(saved);
+                    renderScanLogs();
+                } catch(e) {
+                    scanLogs = [];
+                }
+            }
+        }
+
+        function renderScanLogs() {
+            const container = document.getElementById('scanLogsContainer');
+            if (scanLogs.length === 0) {
+                container.innerHTML = `<div class="text-center py-6 text-slate-400 text-xs">Belum ada aktivitas scan hari ini.</div>`;
+                return;
+            }
+
+            container.innerHTML = scanLogs.slice(0, 10).map(log => `
+                <div class="bg-slate-50 border border-slate-200/80 p-2.5 rounded-xl flex items-center justify-between text-xs">
+                    <div>
+                        <p class="font-bold text-slate-800">${escapeHtml(log.teamName)}</p>
+                        <p class="text-[10px] text-slate-500">${log.statusText} &bull; ${log.time}</p>
+                    </div>
+                    <span class="px-2.5 py-1 rounded-lg text-[10px] font-bold ${log.success === true || log.success === 'BERHASIL' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">
+                        ${log.success === true || log.success === 'BERHASIL' ? 'BERHASIL' : 'DITOLAK'}
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        function showNotificationModal(title, message) {
+            document.getElementById('notifTitle').textContent = title;
+            document.getElementById('notifMessage').textContent = message;
+            document.getElementById('notificationModal').classList.remove('hidden');
+            document.getElementById('notificationModal').classList.add('flex');
+        }
+
+        function closeNotificationModal() {
+            document.getElementById('notificationModal').classList.add('hidden');
+            document.getElementById('notificationModal').classList.remove('flex');
+        }
+
+        function escapeHtml(text) {
+            const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+        }
+    </script>
+</body>
+</html>
